@@ -1,11 +1,7 @@
-import { useMutation } from 'convex/react';
 import { useCallback, useMemo, useState } from 'react';
 
-import { api } from '@/../convex/_generated/api';
-import type { Id } from '@/../convex/_generated/dataModel';
-
-type RequestType = { name: string; workspaceId: Id<'workspaces'> };
-type ResponseType = Id<'channels'> | null;
+type RequestType = { name: string; workspaceId: string };
+type ResponseType = string | null;
 
 type Options = {
   onSuccess?: (data: ResponseType) => void;
@@ -24,8 +20,6 @@ export const useCreateChannel = () => {
   const isError = useMemo(() => status === 'error', [status]);
   const isSettled = useMemo(() => status === 'settled', [status]);
 
-  const mutation = useMutation(api.channels.create);
-
   const mutate = useCallback(
     async (values: RequestType, options?: Options) => {
       try {
@@ -33,21 +27,37 @@ export const useCreateChannel = () => {
         setError(null);
         setStatus('pending');
 
-        const response = await mutation(values);
-        options?.onSuccess?.(response);
+        const response = await fetch('/api/channels', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(values),
+        });
 
-        return response;
-      } catch (error) {
+        if (!response.ok) {
+          throw new Error('Failed to create channel');
+        }
+
+        const result = await response.json();
+        const channelId = result.id;
+
+        setData(channelId);
+        setStatus('success');
+        options?.onSuccess?.(channelId);
+
+        return channelId;
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error('Unknown error');
+        setError(error);
         setStatus('error');
-        options?.onError?.(error as Error);
+        options?.onError?.(error);
 
-        if (!options?.throwError) throw error;
+        if (options?.throwError) throw error;
       } finally {
         setStatus('settled');
         options?.onSettled?.();
       }
     },
-    [mutation],
+    [],
   );
 
   return {

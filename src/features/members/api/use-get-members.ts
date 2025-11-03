@@ -1,18 +1,40 @@
 'use client';
 
-import { useQuery } from 'convex/react';
-
-import { api } from '@/../convex/_generated/api';
-import type { Id } from '@/../convex/_generated/dataModel';
+import { useEffect, useState } from 'react';
 
 interface UseGetMembersProps {
-  workspaceId: Id<'workspaces'>;
+  workspaceId: string;
 }
 
 export const useGetMembers = ({ workspaceId }: UseGetMembersProps) => {
-  const data = useQuery(api.members.get, { workspaceId });
+  const [data, setData] = useState<any[] | undefined>();
+  const [isLoading, setIsLoading] = useState(true);
 
-  const isLoading = data === undefined;
+  useEffect(() => {
+    if (!workspaceId) {
+      setIsLoading(false);
+      return;
+    }
+
+    const fetch_data = async () => {
+      try {
+        const response = await fetch(`/api/workspaces/${workspaceId}/members`);
+        if (response.ok) {
+          const members = await response.json();
+          setData(members);
+        } else {
+          setData([]);
+        }
+      } catch (error) {
+        console.error('Error fetching members:', error);
+        setData([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetch_data();
+  }, [workspaceId]);
 
   return { data, isLoading };
 };

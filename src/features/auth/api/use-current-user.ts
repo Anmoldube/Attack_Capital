@@ -1,10 +1,10 @@
-import { useQuery } from 'convex/react';
-
-import { api } from '@/../convex/_generated/api';
+import { useSession } from '@/lib/client-auth';
 
 export const useCurrentUser = () => {
-  const data = useQuery(api.users.current);
-  const isLoading = data === undefined;
+  const { data: session, isPending: isLoading } = useSession();
 
-  return { data, isLoading };
+  return {
+    data: session?.user,
+    isLoading
+  };
 };

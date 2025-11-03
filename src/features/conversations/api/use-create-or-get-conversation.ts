@@ -1,14 +1,10 @@
-import { useMutation } from 'convex/react';
 import { useCallback, useMemo, useState } from 'react';
 
-import { api } from '@/../convex/_generated/api';
-import type { Id } from '@/../convex/_generated/dataModel';
-
 type RequestType = {
-  workspaceId: Id<'workspaces'>;
-  memberId: Id<'members'>;
+  workspaceId: string;
+  memberId: string;
 };
-type ResponseType = Id<'conversations'> | null;
+type ResponseType = string | null;
 
 type Options = {
   onSuccess?: (data: ResponseType) => void;
@@ -27,8 +23,6 @@ export const useCreateOrGetConversation = () => {
   const isError = useMemo(() => status === 'error', [status]);
   const isSettled = useMemo(() => status === 'settled', [status]);
 
-  const mutation = useMutation(api.conversations.createOrGet);
-
   const mutate = useCallback(
     async (values: RequestType, options?: Options) => {
       try {
@@ -36,21 +30,35 @@ export const useCreateOrGetConversation = () => {
         setError(null);
         setStatus('pending');
 
-        const response = await mutation(values);
-        options?.onSuccess?.(response);
+        const response = await fetch('/api/conversations', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(values),
+        });
 
-        return response;
-      } catch (error) {
+        if (!response.ok) {
+          throw new Error('Failed to create or get conversation');
+        }
+
+        const result = await response.json();
+        setData(result.id);
+        setStatus('success');
+        options?.onSuccess?.(result.id);
+
+        return result.id;
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error('Unknown error');
+        setError(error);
         setStatus('error');
-        options?.onError?.(error as Error);
+        options?.onError?.(error);
 
-        if (!options?.throwError) throw error;
+        if (options?.throwError) throw error;
       } finally {
         setStatus('settled');
         options?.onSettled?.();
       }
     },
-    [mutation],
+    [],
   );
 
   return {

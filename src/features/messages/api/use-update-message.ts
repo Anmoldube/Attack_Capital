@@ -1,14 +1,10 @@
-import { useMutation } from 'convex/react';
 import { useCallback, useMemo, useState } from 'react';
-
-import { api } from '@/../convex/_generated/api';
-import type { Id } from '@/../convex/_generated/dataModel';
 
 type RequestType = {
   body: string;
-  id: Id<'messages'>;
+  id: string;
 };
-type ResponseType = Id<'messages'> | null;
+type ResponseType = string | null;
 
 type Options = {
   onSuccess?: (data: ResponseType) => void;
@@ -27,8 +23,6 @@ export const useUpdateMessage = () => {
   const isError = useMemo(() => status === 'error', [status]);
   const isSettled = useMemo(() => status === 'settled', [status]);
 
-  const mutation = useMutation(api.messages.update);
-
   const mutate = useCallback(
     async (values: RequestType, options?: Options) => {
       try {
@@ -36,21 +30,35 @@ export const useUpdateMessage = () => {
         setError(null);
         setStatus('pending');
 
-        const response = await mutation(values);
-        options?.onSuccess?.(response);
+        const response = await fetch(`/api/messages/${values.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ body: values.body }),
+        });
 
-        return response;
+        if (!response.ok) {
+          throw new Error(`Failed to update message: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        setData(result.id);
+        setStatus('success');
+        options?.onSuccess?.(result.id);
+
+        return result.id;
       } catch (error) {
+        const err = error instanceof Error ? error : new Error(String(error));
+        setError(err);
         setStatus('error');
-        options?.onError?.(error as Error);
+        options?.onError?.(err);
 
-        if (!options?.throwError) throw error;
+        if (options?.throwError) throw err;
       } finally {
         setStatus('settled');
         options?.onSettled?.();
       }
     },
-    [mutation],
+    [],
   );
 
   return {

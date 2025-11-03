@@ -1,16 +1,38 @@
-import { useQuery } from 'convex/react';
-
-import { api } from '@/../convex/_generated/api';
-import type { Id } from '@/../convex/_generated/dataModel';
+import { useEffect, useState } from 'react';
 
 interface UseGetChannelsProps {
-  workspaceId: Id<'workspaces'>;
+  workspaceId: string;
 }
 
 export const useGetChannels = ({ workspaceId }: UseGetChannelsProps) => {
-  const data = useQuery(api.channels.get, { workspaceId });
+  const [data, setData] = useState<any[] | undefined>();
+  const [isLoading, setIsLoading] = useState(true);
 
-  const isLoading = data === undefined;
+  useEffect(() => {
+    if (!workspaceId) {
+      setIsLoading(false);
+      return;
+    }
+
+    const fetch_data = async () => {
+      try {
+        const response = await fetch(`/api/workspaces/${workspaceId}/channels`);
+        if (response.ok) {
+          const channels = await response.json();
+          setData(channels);
+        } else {
+          setData([]);
+        }
+      } catch (error) {
+        console.error('Error fetching channels:', error);
+        setData([]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetch_data();
+  }, [workspaceId]);
 
   return { data, isLoading };
 };

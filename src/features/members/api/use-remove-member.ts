@@ -1,13 +1,9 @@
-import { useMutation } from 'convex/react';
 import { useCallback, useMemo, useState } from 'react';
 
-import { api } from '@/../convex/_generated/api';
-import type { Id } from '@/../convex/_generated/dataModel';
-
 type RequestType = {
-  id: Id<'members'>;
+  id: string;
 };
-type ResponseType = Id<'members'> | null;
+type ResponseType = string | null;
 
 type Options = {
   onSuccess?: (data: ResponseType) => void;
@@ -26,8 +22,6 @@ export const useRemoveMember = () => {
   const isError = useMemo(() => status === 'error', [status]);
   const isSettled = useMemo(() => status === 'settled', [status]);
 
-  const mutation = useMutation(api.members.remove);
-
   const mutate = useCallback(
     async (values: RequestType, options?: Options) => {
       try {
@@ -35,21 +29,33 @@ export const useRemoveMember = () => {
         setError(null);
         setStatus('pending');
 
-        const response = await mutation(values);
-        options?.onSuccess?.(response);
+        const response = await fetch(`/api/members/${values.id}`, {
+          method: 'DELETE',
+        });
 
-        return response;
-      } catch (error) {
+        if (!response.ok) {
+          throw new Error('Failed to remove member');
+        }
+
+        const result = await response.json();
+        setData(result.id);
+        setStatus('success');
+        options?.onSuccess?.(result.id);
+
+        return result.id;
+      } catch (err) {
+        const error = err instanceof Error ? err : new Error('Unknown error');
+        setError(error);
         setStatus('error');
-        options?.onError?.(error as Error);
+        options?.onError?.(error);
 
-        if (!options?.throwError) throw error;
+        if (options?.throwError) throw error;
       } finally {
         setStatus('settled');
         options?.onSettled?.();
       }
     },
-    [mutation],
+    [],
   );
 
   return {

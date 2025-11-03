@@ -3,7 +3,6 @@
 import { ChevronDown, ListFilter, SquarePen } from 'lucide-react';
 import { useState } from 'react';
 
-import { Doc } from '@/../convex/_generated/dataModel';
 import { Hint } from '@/components/hint';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,7 +17,10 @@ import { InviteModal } from './invite-modal';
 import { PreferencesModal } from './preferences-modal';
 
 interface WorkspaceHeaderProps {
-  workspace: Doc<'workspaces'>;
+  workspace: {
+    name: string;
+    joinCode?: string;
+  };
   isAdmin: boolean;
 }
 

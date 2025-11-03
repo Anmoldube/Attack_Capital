@@ -1,17 +1,16 @@
 'use client';
 
-import { useAuthActions } from '@convex-dev/auth/react';
 import { Loader, LogOut } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { signOut } from '@/lib/client-auth';
 
 import { useCurrentUser } from '../api/use-current-user';
 
 export const UserButton = () => {
   const router = useRouter();
-  const { signOut } = useAuthActions();
   const { data, isLoading } = useCurrentUser();
 
   if (isLoading) {
@@ -24,13 +23,13 @@ export const UserButton = () => {
 
   const { image, name } = data;
 
-  const avatarFallback = name?.charAt(0).toUpperCase();
+  const avatarFallback = name?.charAt(0).toUpperCase() || '?';
 
   return (
     <DropdownMenu modal={false}>
       <DropdownMenuTrigger className="relative outline-none">
         <Avatar className="size-10 transition hover:opacity-75">
-          <AvatarImage alt={name} src={image} />
+          <AvatarImage alt={name || 'User'} src={image || ''} />
 
           <AvatarFallback className="text-base">{avatarFallback}</AvatarFallback>
         </Avatar>

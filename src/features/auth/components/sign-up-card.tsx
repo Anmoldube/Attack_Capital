@@ -1,4 +1,5 @@
-import { useAuthActions } from '@convex-dev/auth/react';
+'use client';
+
 import { TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import { FaGithub } from 'react-icons/fa';
@@ -8,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
+import { signUp, signIn } from '@/lib/client-auth';
 
 import type { SignInFlow } from '../types';
 
@@ -16,7 +18,6 @@ interface SignUpCardProps {
 }
 
 export const SignUpCard = ({ setState }: SignUpCardProps) => {
-  const { signIn } = useAuthActions();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -24,12 +25,16 @@ export const SignUpCard = ({ setState }: SignUpCardProps) => {
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
 
-  const handleOAuthSignUp = (value: 'github' | 'google') => {
+  const handleOAuthSignUp = (value: 'google' | 'github') => {
     setPending(true);
-    signIn(value).finally(() => setPending(false));
+    signIn.social({ provider: value, callbackURL: '/' })
+      .catch(() => {
+        setError('OAuth sign-up failed. Please try again.');
+      })
+      .finally(() => setPending(false));
   };
 
-  const handleSignUp = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSignUp = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
 
     const validateEmail = (email: string) => {
@@ -50,11 +55,19 @@ export const SignUpCard = ({ setState }: SignUpCardProps) => {
 
     setPending(true);
     setError('');
-    signIn('password', { name, email, password, flow: 'signUp' })
-      .catch(() => {
-        setError('Something went wrong!');
-      })
-      .finally(() => setPending(false));
+
+    try {
+      await signUp.email({
+        email,
+        password,
+        name,
+        callbackURL: '/',
+      });
+    } catch (err) {
+      setError('Something went wrong! Email might already exist.');
+    } finally {
+      setPending(false);
+    }
   };
 
   return (

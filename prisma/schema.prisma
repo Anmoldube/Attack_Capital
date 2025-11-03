@@ -1,0 +1,306 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// UNIFIED INBOX SCHEMA - Multi-channel Customer Communication
+// ============================================================================
+
+// Users table (Better Auth compatible)
+model User {
+  id            String  @id @default(cuid())
+  email         String  @unique
+  emailVerified Boolean @default(false)
+  name          String?
+  password      String?
+  image         String?
+  role          Role    @default(VIEWER)
+
+  // Better Auth relations
+  accounts Account[]
+  sessions Session[]
+
+  teams     Team[]
+  contacts  Contact[]
+  messages  Message[]
+  notes     Note[]
+  reactions Reaction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+// Better Auth: Account (for OAuth providers)
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type              String
+  provider          String
+  providerAccountId String
+  refreshToken      String?
+  accessToken       String?
+  expiresAt         Int?
+  tokenType         String?
+  scope             String?
+  idToken           String?
+  sessionState      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+// Better Auth: Session
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+
+  createdAt DateTime @default(now())
+
+  @@map("sessions")
+}
+
+// Better Auth: Verification Token (for email verification, password reset)
+model VerificationToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  type      String
+  expiresAt DateTime
+
+  createdAt DateTime @default(now())
+
+  @@map("verification_tokens")
+}
+
+enum Role {
+  ADMIN
+  EDITOR
+  VIEWER
+}
+
+// Teams/Workspaces
+model Team {
+  id     String @id @default(cuid())
+  name   String
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  members      TeamMember[]
+  contacts     Contact[]
+  messages     Message[]
+  channels     Channel[]
+  integrations ChannelIntegration[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("teams")
+}
+
+// Team Members with roles
+model TeamMember {
+  id     String @id @default(cuid())
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId String
+  role   Role   @default(EDITOR)
+
+  createdAt DateTime @default(now())
+
+  @@unique([teamId, userId])
+  @@map("team_members")
+}
+
+// Contacts
+model Contact {
+  id     String @id @default(cuid())
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  firstName   String
+  lastName    String?
+  email       String?
+  phoneNumber String?
+
+  channels ContactChannel[]
+  messages Message[]
+  notes    Note[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("contacts")
+}
+
+// Contact channels (which communication channels they use)
+model ContactChannel {
+  id        String  @id @default(cuid())
+  contactId String
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  channel   Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  channelId String
+
+  externalId String? // Phone number for SMS/WhatsApp, email, etc.
+
+  @@unique([contactId, channelId])
+  @@map("contact_channels")
+}
+
+// Communication Channels (SMS, WhatsApp, Email, etc.)
+model Channel {
+  id     String @id @default(cuid())
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  type   ChannelType
+  name   String
+  config Json? // Store channel-specific config (Twilio SID, etc.)
+
+  contacts ContactChannel[]
+  messages Message[]
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("channels")
+}
+
+enum ChannelType {
+  SMS
+  WHATSAPP
+  EMAIL
+  TWITTER
+  FACEBOOK
+  INTERNAL
+}
+
+// Messages
+model Message {
+  id     String @id @default(cuid())
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  contactId String
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  channelId String
+  channel   Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  body      String
+  isInbound Boolean       @default(false)
+  status    MessageStatus @default(SENT)
+
+  attachments  Attachment[]
+  reactions    Reaction[]
+  scheduledFor DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("messages")
+}
+
+enum MessageStatus {
+  DRAFT
+  SENT
+  DELIVERED
+  READ
+  FAILED
+  SCHEDULED
+}
+
+// Message Attachments
+model Attachment {
+  id        String  @id @default(cuid())
+  messageId String
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  url  String
+  type String
+
+  createdAt DateTime @default(now())
+
+  @@map("attachments")
+}
+
+// Channel Integrations (Twilio, Email service, etc.)
+model ChannelIntegration {
+  id     String @id @default(cuid())
+  teamId String
+  team   Team   @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  type        IntegrationType
+  credentials Json // Encrypted in production
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("channel_integrations")
+}
+
+enum IntegrationType {
+  TWILIO
+  RESEND
+  TWITTER
+  FACEBOOK
+  SLACK
+  ZAPIER
+}
+
+// Notes with collaboration
+model Note {
+  id        String  @id @default(cuid())
+  contactId String
+  contact   Contact @relation(fields: [contactId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  content  String
+  isPublic Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("notes")
+}
+
+// Reactions to messages
+model Reaction {
+  id        String  @id @default(cuid())
+  messageId String
+  message   Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  emoji String
+
+  createdAt DateTime @default(now())
+
+  @@map("reactions")
+}

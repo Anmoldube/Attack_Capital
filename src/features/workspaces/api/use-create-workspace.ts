@@ -1,11 +1,7 @@
-import { useMutation } from 'convex/react';
 import { useCallback, useMemo, useState } from 'react';
 
-import { api } from '@/../convex/_generated/api';
-import type { Id } from '@/../convex/_generated/dataModel';
-
 type RequestType = { name: string };
-type ResponseType = Id<'workspaces'> | null;
+type ResponseType = string | null;
 
 type Options = {
   onSuccess?: (data: ResponseType) => void;
@@ -24,8 +20,6 @@ export const useCreateWorkspace = () => {
   const isError = useMemo(() => status === 'error', [status]);
   const isSettled = useMemo(() => status === 'settled', [status]);
 
-  const mutation = useMutation(api.workspaces.create);
-
   const mutate = useCallback(
     async (values: RequestType, options?: Options) => {
       try {
@@ -33,21 +27,35 @@ export const useCreateWorkspace = () => {
         setError(null);
         setStatus('pending');
 
-        const response = await mutation(values);
-        options?.onSuccess?.(response);
+        const response = await fetch('/api/workspaces', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(values),
+        });
 
-        return response;
+        if (!response.ok) {
+          throw new Error(`Failed to create workspace: ${response.statusText}`);
+        }
+
+        const result = await response.json();
+        setData(result.id);
+        setStatus('success');
+        options?.onSuccess?.(result.id);
+
+        return result.id;
       } catch (error) {
+        const err = error instanceof Error ? error : new Error(String(error));
+        setError(err);
         setStatus('error');
-        options?.onError?.(error as Error);
+        options?.onError?.(err);
 
-        if (!options?.throwError) throw error;
+        if (options?.throwError) throw err;
       } finally {
         setStatus('settled');
         options?.onSettled?.();
       }
     },
-    [mutation],
+    [],
   );
 
   return {

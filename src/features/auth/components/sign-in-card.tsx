@@ -1,4 +1,5 @@
-import { useAuthActions } from '@convex-dev/auth/react';
+'use client';
+
 import { TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import { FaGithub } from 'react-icons/fa';
@@ -8,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
+import { signIn } from '@/lib/client-auth';
 
 import type { SignInFlow } from '../types';
 
@@ -16,27 +18,36 @@ interface SignInCardProps {
 }
 
 export const SignInCard = ({ setState }: SignInCardProps) => {
-  const { signIn } = useAuthActions();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [pending, setPending] = useState(false);
 
-  const handleOAuthSignIn = (value: 'github' | 'google') => {
+  const handleOAuthSignIn = (value: 'google' | 'github') => {
     setPending(true);
-    signIn(value).finally(() => setPending(false));
+    signIn.social({ provider: value, callbackURL: '/' })
+      .catch(() => {
+        setError('OAuth sign-in failed. Please try again.');
+      })
+      .finally(() => setPending(false));
   };
 
-  const handleSignIn = (e: React.FormEvent<HTMLFormElement>) => {
+  const handleSignIn = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setPending(true);
     setError('');
 
-    signIn('password', { email, password, flow: 'signIn' })
-      .catch(() => {
-        setError('Invalid email or password!');
-      })
-      .finally(() => setPending(false));
+    try {
+      await signIn.email({
+        email,
+        password,
+        callbackURL: '/',
+      });
+    } catch (err) {
+      setError('Invalid email or password!');
+    } finally {
+      setPending(false);
+    }
   };
 
   return (
